@@ -1,4 +1,16 @@
 import express from "express";
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+
+
+dotenv.config();
+
+mongoose.connect(process.env.MONGO_SECRET_KEY) 
+  .then(() => console.log("MongoDB is connected"))
+  .catch((error) => {
+    console.log("MongoDB connection failed:", error.message);
+    process.exit(1);
+  });
 
 const app = express();
 
