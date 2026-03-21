@@ -1,60 +1,55 @@
-import 'react-native-gesture-handler'; // Must be first import
+import 'react-native-gesture-handler';
 
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSelector } from 'react-redux';
 import { useFonts } from 'expo-font';
 import * as SplashScreenExpo from 'expo-splash-screen';
+import { selectIsAuthenticated } from './src/redux/slices/authSlice';
 
-import SplashScreen from './src/intro/SplashScreen';
 import OnboardingScreen from './src/intro/OnboardingScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import SigninScreen from './src/screens/SigninScreen';
+import SplashScreen from './src/intro/SplashScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-// Keep native splash visible while fonts load
+
+
 SplashScreenExpo.preventAutoHideAsync();
 
 const Stack = createNativeStackNavigator();
 
-async function resolveInitialRoute() {
-  // TEMP: force onboarding during development — remove before release
-  await AsyncStorage.multiRemove(['authToken', 'hasOnboarded']);
+// ─── Navigator — driven purely by Redux auth state ────────────────────────────
+function AppNavigator() {
+  const isAuthenticated = useSelector(selectIsAuthenticated);
 
-  const [token, hasOnboarded] = await Promise.all([
-    AsyncStorage.getItem('authToken'),
-    AsyncStorage.getItem('hasOnboarded'),
-  ]);
-
-  if (token) return 'Home';
-  if (hasOnboarded === 'true') return 'Signup';
-  return 'Onboarding';
-}
-
-function AppNavigator({ initialRoute }) {
   return (
     <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName={initialRoute}
-        screenOptions={{ headerShown: false, animation: 'fade' }}
-      >
-        <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-        <Stack.Screen name="Signup" component={SignupScreen} />
-        <Stack.Screen name="Login" component={SigninScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
+        {isAuthenticated ? (
+          // Authenticated — go straight to Home, stays forever until logout
+          <Stack.Screen name="Home" component={HomeScreen} />
+        ) : (
+          // Unauthenticated — onboarding → signup/login
+          <>
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+            <Stack.Screen name="Signup" component={SignupScreen} />
+            <Stack.Screen name="Login" component={SigninScreen} />
+          </>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
 
+// ─── Root — handles fonts + splash ───────────────────────────────────────────
 export default function App() {
-  const [appState, setAppState] = useState('loading');
-  const [initialRoute, setInitialRoute] = useState('Onboarding');
+  const [splashDone, setSplashDone] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  // ── Load all Manrope weights once — available everywhere in the app
   const [fontsLoaded] = useFonts({
     'Manrope-ExtraLight': require('./assets/fonts/Manrope-ExtraLight.ttf'),
     'Manrope-Light':      require('./assets/fonts/Manrope-Light.ttf'),
@@ -66,14 +61,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (!fontsLoaded) return;
-
-    SplashScreenExpo.hideAsync();
-
-    resolveInitialRoute().then((route) => {
-      setInitialRoute(route);
-      setAppState(route === 'Home' ? 'app' : 'splash');
-    });
+    if (fontsLoaded) SplashScreenExpo.hideAsync();
   }, [fontsLoaded]);
 
   const handleSplashFinish = () => {
@@ -81,25 +69,26 @@ export default function App() {
       toValue: 0,
       duration: 600,
       useNativeDriver: true,
-    }).start(() => setAppState('app'));
+    }).start(() => setSplashDone(true));
   };
 
-  if (!fontsLoaded || appState === 'loading') {
-    return <View style={styles.root} />;
-  }
+  if (!fontsLoaded) return <View style={styles.root} />;
 
   return (
-    <View style={styles.root}>
-      {appState === 'app' && <AppNavigator initialRoute={initialRoute} />}
-
-      {appState === 'splash' && (
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: fadeAnim }]}>
-          <SplashScreen onFinish={handleSplashFinish} />
-        </Animated.View>
-      )}
-    </View>
+    <SafeAreaProvider>
+      <View style={styles.root}>
+        {splashDone && <AppNavigator />}
+        {!splashDone && (
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: fadeAnim }]}>
+            <SplashScreen onFinish={handleSplashFinish} />
+          </Animated.View>
+        )}
+      </View>
+    </SafeAreaProvider>
   );
 }
+
+
 
 const styles = StyleSheet.create({
   root: {

@@ -14,11 +14,12 @@ import {
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useDispatch } from "react-redux";
+import { setCredentials } from "../redux/slices/authSlice";
+
 
 const { width } = Dimensions.get("window");
 
-// ─── Design Tokens ─────────────────────────────────────────────────────────
 const C = {
   bg: "#FFF8F8",
   bgCard: "#FFFFFF",
@@ -34,7 +35,6 @@ const C = {
   error: "#E8394D",
 };
 
-// ─── Font map — import these by name anywhere after App.js loads them ───────
 const F = {
   extraLight: "Manrope-ExtraLight",
   light: "Manrope-Light",
@@ -45,8 +45,6 @@ const F = {
   extraBold: "Manrope-ExtraBold",
 };
 
-// ── Change to your Mac's local IP when testing on a physical device
-// Run in terminal: ipconfig getifaddr en0
 const API_URL = "http://localhost:3000/api/auth";
 
 // ─── Floating Label Input ───────────────────────────────────────────────────
@@ -95,13 +93,12 @@ function FloatingInput({
       duration: 200,
       useNativeDriver: false,
     }).start();
-    if (!value) {
+    if (!value)
       Animated.timing(labelAnim, {
         toValue: 0,
         duration: 180,
         useNativeDriver: false,
       }).start();
-    }
   };
 
   const labelTop = labelAnim.interpolate({
@@ -173,14 +170,12 @@ function PasswordStrength({ password }) {
   if (/[A-Z]/.test(password)) score++;
   if (/[0-9]/.test(password)) score++;
   if (/[^A-Za-z0-9]/.test(password)) score++;
-
   const { label, color } =
     score <= 1
       ? { label: "Weak", color: C.error }
       : score <= 3
         ? { label: "Fair", color: "#F59E0B" }
         : { label: "Strong", color: C.emerald };
-
   return (
     <View style={styles.strengthContainer}>
       <View style={styles.strengthBars}>
@@ -201,6 +196,7 @@ function PasswordStrength({ password }) {
 
 // ─── Main Screen ────────────────────────────────────────────────────────────
 export default function SignupScreen({ navigation }) {
+  const dispatch = useDispatch();
   const [form, setForm] = useState({ fullName: "", email: "", password: "" });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -272,18 +268,14 @@ export default function SignupScreen({ navigation }) {
         return;
       }
 
-      // Cache auth state — future launches skip splash + onboarding
-      await Promise.all([
-        AsyncStorage.setItem("authToken", data.token),
-        AsyncStorage.setItem("authUser", JSON.stringify(data.user)),
-        AsyncStorage.setItem("hasOnboarded", "true"),
-      ]);
+      // ── Dispatch to Redux — redux-persist handles caching to AsyncStorage
+      dispatch(setCredentials({ user: data.user, token: data.token }));
 
-      navigation.replace("Home");
+      // Navigation is handled automatically by AppNavigator
+      // watching isAuthenticated state — no need to navigate manually
     } catch (error) {
-  console.log("FULL ERROR:", error.message, error);
-  setApiError("Network error. Check your connection and try again.");
-} finally {
+      setApiError("Network error. Check your connection and try again.");
+    } finally {
       setLoading(false);
     }
   };
@@ -299,7 +291,7 @@ export default function SignupScreen({ navigation }) {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          {/* ── Header ── */}
+          {/* Header */}
           <Animated.View
             style={[
               styles.header,
@@ -328,7 +320,7 @@ export default function SignupScreen({ navigation }) {
             </Text>
           </Animated.View>
 
-          {/* ── Form card ── */}
+          {/* Form card */}
           <View style={styles.card}>
             <FloatingInput
               label="Full Name"
@@ -363,7 +355,6 @@ export default function SignupScreen({ navigation }) {
                 </TouchableOpacity>
               }
             />
-
             <PasswordStrength password={form.password} />
 
             {apiError ? (
@@ -394,14 +385,14 @@ export default function SignupScreen({ navigation }) {
             </Animated.View>
           </View>
 
-          {/* ── Divider ── */}
+          {/* Divider */}
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>or</Text>
             <View style={styles.dividerLine} />
           </View>
 
-          {/* ── Login link ── */}
+          {/* Login link */}
           <TouchableOpacity
             style={styles.loginRow}
             onPress={() => navigation.navigate("Login")}
@@ -417,12 +408,9 @@ export default function SignupScreen({ navigation }) {
   );
 }
 
-// ─── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 12 },
-
-  // Header
   header: { paddingBottom: 28, paddingTop: 8 },
   brandRow: {
     flexDirection: "row",
@@ -451,7 +439,6 @@ const styles = StyleSheet.create({
     color: C.crimson,
     letterSpacing: 0.6,
   },
-
   headingLight: {
     fontFamily: F.light,
     fontSize: 34,
@@ -473,8 +460,6 @@ const styles = StyleSheet.create({
     color: C.textMuted,
     lineHeight: 22,
   },
-
-  // Card
   card: {
     backgroundColor: C.bgCard,
     borderRadius: 24,
@@ -486,8 +471,6 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 6,
   },
-
-  // Inputs
   inputWrapper: { marginBottom: 10 },
   inputContainer: {
     backgroundColor: C.inputBg,
@@ -524,8 +507,6 @@ const styles = StyleSheet.create({
     marginTop: 5,
     marginLeft: 4,
   },
-
-  // Strength
   strengthContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -542,8 +523,6 @@ const styles = StyleSheet.create({
     width: 46,
     textAlign: "right",
   },
-
-  // API error
   apiErrorBox: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -563,8 +542,6 @@ const styles = StyleSheet.create({
     color: C.error,
     lineHeight: 19,
   },
-
-  // Terms
   terms: {
     fontFamily: F.regular,
     fontSize: 12,
@@ -575,8 +552,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   termsLink: { fontFamily: F.semiBold, color: C.crimson },
-
-  // Submit
   submitBtn: {
     backgroundColor: C.crimson,
     borderRadius: 14,
@@ -596,8 +571,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     letterSpacing: 0.4,
   },
-
-  // Divider
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -607,8 +580,6 @@ const styles = StyleSheet.create({
   },
   dividerLine: { flex: 1, height: 1, backgroundColor: "#F0D0D4" },
   dividerText: { fontFamily: F.medium, fontSize: 13, color: C.textMuted },
-
-  // Login
   loginRow: {
     flexDirection: "row",
     justifyContent: "center",
