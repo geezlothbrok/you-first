@@ -41,3 +41,8 @@ yarn-error.*
 /android
 .env
 build
+
+node_modules/
+**/node_modules/
+api/node_modules/
+client/node_modules/
