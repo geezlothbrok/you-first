@@ -7,6 +7,7 @@ import DrawerContent from "../navigations/DrawerContent";
 import HomeTab from "../tabs/HomeTab";
 import SOSTab from "../tabs/SOSTab";
 import ProfileTab from "../tabs/ProfileTab";
+import HealthProfileScreen from "./HealthProfileScreen";
 
 
 // ── Placeholder screens for drawer links (build out in Phase 2)
@@ -104,7 +105,7 @@ export default function HomeScreen() {
         drawerStyle: { width: "78%", backgroundColor: C.white },
       }}>
       <Drawer.Screen name="MainTabs" component={BottomTabs} />
-      <Drawer.Screen name="HealthProfile" component={PlaceholderScreen} />
+      <Drawer.Screen name="HealthProfile" component={HealthProfileScreen} />
       <Drawer.Screen name="Medications" component={PlaceholderScreen} />
       <Drawer.Screen name="Appointments" component={PlaceholderScreen} />
       <Drawer.Screen name="EmergencyContacts" component={PlaceholderScreen} />

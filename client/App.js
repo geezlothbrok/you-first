@@ -15,6 +15,7 @@ import SigninScreen from './src/screens/SigninScreen';
 import SplashScreen from './src/intro/SplashScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import HealthProfileScreen from './src/screens/HealthProfileScreen';
 
 
 
@@ -38,6 +39,7 @@ function AppNavigator() {
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="Signup" component={SignupScreen} />
             <Stack.Screen name="Login" component={SigninScreen} />
+            <Stack.Screen name="HealthProfile" component={HealthProfileScreen} />
           </>
         )}
       </Stack.Navigator>
