@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Image } from "react-native";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
@@ -11,36 +11,13 @@ import HealthProfileScreen from "./HealthProfileScreen";
 import EmergencyContactsScreen from "./EmergencyContactScreen";
 import MedicationsScreen from "./MedicationsScreen";
 import AppointmentsScreen from "./AppointmentsScreen";
+import SettingsScreen from "./SettingsScreen";
 
-
-// ── Placeholder screens for drawer links (build out in Phase 2)
-const PlaceholderScreen = ({ route }) => (
-  <View
-    style={{
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "#FFF8F8",
-    }}>
-    <Text
-      style={{
-        fontFamily: "Manrope-ExtraBold",
-        fontSize: 20,
-        color: "#8B0F1E",
-      }}>
-      {route.name}
-    </Text>
-    <Text
-      style={{
-        fontFamily: "Manrope-Regular",
-        fontSize: 14,
-        color: "#9E7A7E",
-        marginTop: 8,
-      }}>
-      Coming soon
-    </Text>
-  </View>
-);
+// ─── Icon assets ──────────────────────────────────────────────────────────────
+const ICONS = {
+  house: require("../../assets/icons/house.png"),
+  account: require("../../assets/icons/account.png"),
+};
 
 const C = {
   crimson: "#C0152A",
@@ -48,9 +25,13 @@ const C = {
   white: "#FFFFFF",
   textMuted: "#9E7A7E",
 };
-const F = { medium: "Manrope-Medium" };
 
-// ─── Bottom Tabs ─────────────────────────────────────────────────────────────
+const F = {
+  medium: "Manrope-Medium",
+  bold: "Manrope-Bold",
+};
+
+// ─── Bottom Tabs ──────────────────────────────────────────────────────────────
 const Tab = createBottomTabNavigator();
 
 function BottomTabs() {
@@ -63,7 +44,7 @@ function BottomTabs() {
         tabBarInactiveTintColor: C.textMuted,
         tabBarLabelStyle: styles.tabLabel,
         tabBarIcon: ({ focused }) => {
-          const icons = { Home: "🏠", SOS: "🆘", Profile: "👤" };
+          // ── SOS center button
           if (route.name === "SOS") {
             return (
               <View
@@ -72,12 +53,46 @@ function BottomTabs() {
               </View>
             );
           }
-          return (
-            <View
-              style={[styles.tabIconWrap, focused && styles.tabIconWrapActive]}>
-              <Text style={styles.tabIcon}>{icons[route.name]}</Text>
-            </View>
-          );
+
+          // ── Home
+          if (route.name === "Home") {
+            return (
+              <View
+                style={[
+                  styles.tabIconWrap,
+                  focused && styles.tabIconWrapActive,
+                ]}>
+                <Image
+                  source={ICONS.house}
+                  style={[
+                    styles.tabIconImg,
+                    { tintColor: focused ? C.crimson : C.textMuted },
+                  ]}
+                  resizeMode="contain"
+                />
+              </View>
+            );
+          }
+
+          // ── Profile
+          if (route.name === "Profile") {
+            return (
+              <View
+                style={[
+                  styles.tabIconWrap,
+                  focused && styles.tabIconWrapActive,
+                ]}>
+                <Image
+                  source={ICONS.account}
+                  style={[
+                    styles.tabIconImg,
+                    { tintColor: focused ? C.crimson : C.textMuted },
+                  ]}
+                  resizeMode="contain"
+                />
+              </View>
+            );
+          }
         },
       })}>
       <Tab.Screen name="Home" component={HomeTab} />
@@ -111,12 +126,16 @@ export default function HomeScreen() {
       <Drawer.Screen name="HealthProfile" component={HealthProfileScreen} />
       <Drawer.Screen name="Medications" component={MedicationsScreen} />
       <Drawer.Screen name="Appointments" component={AppointmentsScreen} />
-      <Drawer.Screen name="EmergencyContacts" component={EmergencyContactsScreen} />
-      <Drawer.Screen name="Settings" component={PlaceholderScreen} />
+      <Drawer.Screen
+        name="EmergencyContacts"
+        component={EmergencyContactsScreen}
+      />
+      <Drawer.Screen name="Settings" component={SettingsScreen} />
     </Drawer.Navigator>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: C.white,
@@ -131,7 +150,10 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 10,
   },
-  tabLabel: { fontFamily: F.medium, fontSize: 11 },
+  tabLabel: {
+    fontFamily: F.bold,
+    fontSize: 12,
+  },
   tabIconWrap: {
     width: 36,
     height: 36,
@@ -140,7 +162,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tabIconWrapActive: { backgroundColor: "#FDECEA" },
-  tabIcon: { fontSize: 20 },
+  tabIconImg: { width: 22, height: 22 },
   sosTabBtn: {
     width: 52,
     height: 52,
