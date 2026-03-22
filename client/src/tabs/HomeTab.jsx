@@ -17,6 +17,8 @@ import { useSelector } from "react-redux";
 import { selectUser, selectToken } from "../redux/slices/authSlice";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import SafetyEngine from "../components/SafetyEngine";
+import { usePedometer, stepsToKm } from "../hooks/usePedometer";
+import { callAmbulance } from "../utils/EmergencyServices";
 
 const { width } = Dimensions.get("window");
 const CARD_GAP = 12;
@@ -74,53 +76,6 @@ const APTS_API = "http://localhost:3000/api/appointments/upcoming";
 const MEDS_CACHE = "medications_today_cache";
 const APTS_CACHE = "appointments_cache_upcoming";
 
-// ─── Placeholder activity stats (Phase 4 — sensor data) ──────────────────
-const STEPS = 8432;
-const KM = (STEPS * 0.000762).toFixed(2);
-
-const ACTIVITY_STATS = [
-  {
-    key: "steps",
-    icon: ICONS.footprint,
-    label: "Steps",
-    value: STEPS.toLocaleString(),
-    sub: `${KM} km`,
-    color: C.crimson,
-    bg: C.crimsonPale,
-    large: true,
-  },
-  {
-    key: "calories",
-    icon: ICONS.calories,
-    label: "Calories",
-    value: "1,240",
-    sub: "kcal",
-    color: C.amber,
-    bg: C.amberPale,
-    large: false,
-  },
-  {
-    key: "sleep",
-    icon: ICONS.baby,
-    label: "Sleep",
-    value: "7.2",
-    sub: "hours",
-    color: C.purple,
-    bg: C.purplePale,
-    large: false,
-  },
-  {
-    key: "heart",
-    icon: ICONS.heartRate,
-    label: "Heart Rate",
-    value: "72",
-    sub: "bpm",
-    color: C.crimsonLight,
-    bg: C.crimsonPale,
-    large: false,
-  },
-];
-
 // ─── Section header ───────────────────────────────────────────────────────
 function SectionHeader({ title, link, onLink }) {
   return (
@@ -135,9 +90,9 @@ function SectionHeader({ title, link, onLink }) {
   );
 }
 
-// ─── Activity grid ────────────────────────────────────────────────────────
-function ActivityGrid() {
-  const anims = ACTIVITY_STATS.map(() => useRef(new Animated.Value(0)).current);
+// ─── Activity grid — accepts stats as prop ────────────────────────────────
+function ActivityGrid({ stats }) {
+  const anims = stats.map(() => useRef(new Animated.Value(0)).current);
 
   useEffect(() => {
     Animated.stagger(
@@ -152,7 +107,7 @@ function ActivityGrid() {
     ).start();
   }, []);
 
-  const [steps, calories, sleep, heart] = ACTIVITY_STATS;
+  const [steps, calories, sleep, heart] = stats;
 
   return (
     <View style={styles.activityGrid}>
@@ -227,6 +182,54 @@ export default function HomeTab({ navigation }) {
   const user = useSelector(selectUser);
   const token = useSelector(selectToken);
 
+  // ── Real step count from device pedometer
+  const { steps, isAvailable: pedometerAvailable } = usePedometer();
+  const km = stepsToKm(steps);
+
+  // ── Activity stats — steps are real, rest are placeholders until HealthKit
+  const ACTIVITY_STATS = [
+    {
+      key: "steps",
+      icon: ICONS.footprint,
+      label: "Steps",
+      value: steps > 0 ? steps.toLocaleString() : "—",
+      sub: steps > 0 ? `${km} km` : "tracking...",
+      color: C.crimson,
+      bg: C.crimsonPale,
+      large: true,
+    },
+    {
+      key: "calories",
+      icon: ICONS.calories,
+      label: "Calories",
+      value: "—",
+      sub: "kcal",
+      color: C.amber,
+      bg: C.amberPale,
+      large: false,
+    },
+    {
+      key: "sleep",
+      icon: ICONS.baby,
+      label: "Sleep",
+      value: "—",
+      sub: "hours",
+      color: C.purple,
+      bg: C.purplePale,
+      large: false,
+    },
+    {
+      key: "heart",
+      icon: ICONS.heartRate,
+      label: "Heart Rate",
+      value: "—",
+      sub: "bpm",
+      color: C.crimsonLight,
+      bg: C.crimsonPale,
+      large: false,
+    },
+  ];
+
   const [todayMeds, setTodayMeds] = useState([]);
   const [upcomingApts, setUpcomingApts] = useState([]);
   const [medsLoading, setMedsLoading] = useState(true);
@@ -253,7 +256,6 @@ export default function HomeTab({ navigation }) {
     loadData();
   }, []);
 
-  // ── Load medications and appointments in parallel ─────────────────────
   const loadData = useCallback(async () => {
     await Promise.all([loadMedications(), loadAppointments()]);
     setRefreshing(false);
@@ -261,7 +263,6 @@ export default function HomeTab({ navigation }) {
 
   const loadMedications = async () => {
     try {
-      // Show cached first
       const cached = await AsyncStorage.getItem(MEDS_CACHE);
       if (cached) setTodayMeds(JSON.parse(cached));
 
@@ -313,7 +314,6 @@ export default function HomeTab({ navigation }) {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Optimistic update
       const updated = todayMeds.map((m) =>
         m._id === med._id ? { ...m, takenToday: true } : m,
       );
@@ -329,7 +329,6 @@ export default function HomeTab({ navigation }) {
     loadData();
   };
 
-  // ── Format appointment date ───────────────────────────────────────────
   const formatAptDate = (dateStr) => {
     const date = new Date(dateStr);
     return {
@@ -345,7 +344,7 @@ export default function HomeTab({ navigation }) {
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={C.crimsonDeep} />
 
-      {/* Safety Engine — silent background monitoring */}
+      {/* Safety Engine */}
       <SafetyEngine enabled={true} />
 
       {/* ── Static header ── */}
@@ -423,9 +422,9 @@ export default function HomeTab({ navigation }) {
           </View>
         </View>
 
-        {/* Activity stats */}
+        {/* Activity stats — steps are real */}
         <SectionHeader title="Today's Activity" link="View all" />
-        <ActivityGrid />
+        <ActivityGrid stats={ACTIVITY_STATS} />
 
         {/* Emergency actions */}
         <SectionHeader title="Emergency Actions" />
@@ -454,6 +453,7 @@ export default function HomeTab({ navigation }) {
               source={ICONS.ambulanza}
               style={styles.emergencyIcon}
               resizeMode="contain"
+              onPress={callAmbulance}
             />
             <Text style={[styles.emergencyLabel, { color: C.emerald }]}>
               Ambulance
@@ -464,7 +464,7 @@ export default function HomeTab({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── Today's Medications — REAL DATA ── */}
+        {/* Today's Medications — real data */}
         <SectionHeader
           title="Today's Medications"
           link="View all"
@@ -546,7 +546,7 @@ export default function HomeTab({ navigation }) {
           )}
         </View>
 
-        {/* ── Upcoming Appointments — REAL DATA ── */}
+        {/* Upcoming Appointments — real data */}
         <SectionHeader
           title="Upcoming Appointments"
           link="Add new"
@@ -831,7 +831,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Card wrapper
+  // Card
   card: {
     marginHorizontal: 20,
     backgroundColor: C.white,
@@ -843,8 +843,6 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 3,
   },
-
-  // Empty card
   emptyCard: {
     alignItems: "center",
     justifyContent: "center",
