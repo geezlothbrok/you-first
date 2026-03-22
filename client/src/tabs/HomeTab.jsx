@@ -60,7 +60,7 @@ const ICONS = {
   heartRate: require("../../assets/icons/rate.png"),
   phone: require("../../assets/icons/call.png"),
   ambulanza: require("../../assets/icons/WH1221_DP_A.png"),
-  calendar: require("../../assets/icons/calendar.png"),
+  calendars: require("../../assets/icons/calendar.png"),
   security: require("../../assets/icons/security.png"),
 };
 
@@ -418,7 +418,7 @@ export default function HomeTab({ navigation }) {
                 <Text style={styles.appointmentType}>{apt.type}</Text>
                 <View style={styles.appointmentTimeRow}>
                   <Image
-                    source={ICONS.calendar}
+                    source={ICONS.calendars}
                     style={styles.calendarIcon}
                     resizeMode="contain"
                   />
