@@ -385,7 +385,6 @@ export default function HealthProfileScreen({ navigation }) {
         dateOfBirth: profile.dateOfBirth || null,
       };
 
-      console.log("Saving body:", JSON.stringify(body));
       const res = await fetch(`${API_URL}/profile`, {
         method: "PUT",
         headers: {

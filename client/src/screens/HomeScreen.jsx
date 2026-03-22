@@ -8,6 +8,7 @@ import HomeTab from "../tabs/HomeTab";
 import SOSTab from "../tabs/SOSTab";
 import ProfileTab from "../tabs/ProfileTab";
 import HealthProfileScreen from "./HealthProfileScreen";
+import EmergencyContactsScreen from "./EmergencyContactScreen";
 
 
 // ── Placeholder screens for drawer links (build out in Phase 2)
@@ -108,7 +109,7 @@ export default function HomeScreen() {
       <Drawer.Screen name="HealthProfile" component={HealthProfileScreen} />
       <Drawer.Screen name="Medications" component={PlaceholderScreen} />
       <Drawer.Screen name="Appointments" component={PlaceholderScreen} />
-      <Drawer.Screen name="EmergencyContacts" component={PlaceholderScreen} />
+      <Drawer.Screen name="EmergencyContacts" component={EmergencyContactsScreen} />
       <Drawer.Screen name="Settings" component={PlaceholderScreen} />
     </Drawer.Navigator>
   );
