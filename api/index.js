@@ -5,6 +5,7 @@ import authRoutes from "./routes/auth.route.js";
 import healthRoutes from "./routes/health.route.js";
 import sosRoutes from "./routes/sos.routes.js";
 import medicationRoutes from "./routes/medications.route.js";
+import appointmentRoutes from "./routes/appointment.route.js";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/sos", sosRoutes);
 app.use("/api/medications", medicationRoutes);
+app.use("/api/appointments", appointmentRoutes);
 
 
 // ── Global error handler (needs all 4 params to work)
