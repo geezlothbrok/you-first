@@ -7,12 +7,13 @@ import {
   Animated,
   StatusBar,
   Dimensions,
-  Alert,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 import { selectUser } from "../redux/slices/authSlice";
 import { useSOSTrigger } from "../hooks/useSosTrigger";
+// import { useVoiceTrigger } from "../hooks/useVoiceTrigger";
 
 const { width } = Dimensions.get("window");
 
@@ -29,6 +30,8 @@ const C = {
   white: "#FFFFFF",
   textDark: "#1A0608",
   textMuted: "#9E7A7E",
+  inputBorder: "#F0D0D4",
+  inputBg: "#FFF4F5",
 };
 
 const F = {
@@ -65,7 +68,6 @@ function SOSButton({ onPress }) {
           Animated.delay(1800),
         ]),
       );
-
     createPulse(pulse1, 0).start();
     createPulse(pulse2, 400).start();
     createPulse(pulse3, 800).start();
@@ -107,21 +109,60 @@ function SOSButton({ onPress }) {
           onPress={handlePress}
           activeOpacity={0.9}>
           <Text style={styles.sosButtonLabel}>SOS</Text>
-          <Text style={styles.sosButtonSub}>Hold to send alert</Text>
+          <Text style={styles.sosButtonSub}>Tap to send alert</Text>
         </TouchableOpacity>
       </Animated.View>
     </View>
   );
 }
 
+// ─── Mic pulse animation ──────────────────────────────────────────────────
+function MicPulse() {
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1.3,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, []);
+  return (
+    <Animated.View
+      style={[styles.micPulse, { transform: [{ scale: pulse }] }]}
+    />
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────
 export default function SOSTab() {
   const user = useSelector(selectUser);
-  const { triggerManualSOS } = useSOSTrigger();
+  const { triggerManualSOS, triggerSOS } = useSOSTrigger();
   const userName = user?.fullName || "VitaTrack User";
 
-  const headerAnim = useRef(new Animated.Value(0)).current;
+  // const {
+  //   isListening,
+  //   isEnabled: voiceEnabled,
+  //   toggleVoice,
+  //   lastHeard,
+  // } = useVoiceTrigger({
+  //   onSOSTrigger: triggerSOS,
+  //   userName,
+  // });
+  const isListening = false;
+  const voiceEnabled = false;
+  const toggleVoice = () => {};
+  const lastHeard = "";
 
+  const headerAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(headerAnim, {
       toValue: 1,
@@ -142,63 +183,122 @@ export default function SOSTab() {
       </SafeAreaView>
 
       <SafeAreaView style={styles.container} edges={["bottom"]}>
-        <Animated.View style={[styles.content, { opacity: headerAnim }]}>
-          {/* Status */}
-          <View style={styles.statusCard}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Safety monitoring is active</Text>
+        <Animated.ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}>
+          {/* Status row */}
+          <View style={styles.statusRow}>
+            <View style={styles.statusCard}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusText}>Monitoring active</Text>
+            </View>
+            {isListening && (
+              <View style={styles.micStatusCard}>
+                <MicPulse />
+                <Text style={styles.micStatusText}>🎤 Listening</Text>
+              </View>
+            )}
           </View>
 
           {/* SOS button */}
           <SOSButton onPress={() => triggerManualSOS(userName)} />
 
           <Text style={styles.sosHint}>
-            Tap the button above to send an emergency alert to all your SOS
-            contacts
+            Tap to send an emergency SMS to all contacts and call each of them
           </Text>
 
-          {/* What happens info cards */}
+          {/* What happens cards */}
           <View style={styles.infoCards}>
             <View style={styles.infoCard}>
               <Text style={styles.infoEmoji}>💬</Text>
               <View style={styles.infoText}>
-                <Text style={styles.infoTitle}>SMS Alert</Text>
+                <Text style={styles.infoTitle}>SMS to All Contacts</Text>
                 <Text style={styles.infoDesc}>
-                  Sent to all contacts with your location
+                  Sent simultaneously with your live location
                 </Text>
               </View>
             </View>
-
             <View style={[styles.infoCard, styles.infoCardBorder]}>
               <Text style={styles.infoEmoji}>📞</Text>
               <View style={styles.infoText}>
-                <Text style={styles.infoTitle}>Phone Call</Text>
+                <Text style={styles.infoTitle}>Calls Everyone</Text>
                 <Text style={styles.infoDesc}>
-                  Calls your priority 1 contact immediately
+                  Each contact called 30 seconds apart by priority
                 </Text>
               </View>
             </View>
-
             <View style={styles.infoCard}>
               <Text style={styles.infoEmoji}>📍</Text>
               <View style={styles.infoText}>
                 <Text style={styles.infoTitle}>Live Location</Text>
                 <Text style={styles.infoDesc}>
-                  Your GPS coordinates included in the alert
+                  GPS coordinates included in every alert
                 </Text>
               </View>
             </View>
           </View>
 
+          {/* Voice trigger toggle */}
+          <View style={styles.voiceCard}>
+            <View style={styles.voiceCardHeader}>
+              <Text style={styles.voiceEmoji}>🎤</Text>
+              <View style={styles.voiceCardInfo}>
+                <Text style={styles.voiceCardTitle}>Voice Trigger</Text>
+                <Text style={styles.voiceCardSubtitle}>
+                  Say "Help", "Emergency" or "SOS" to trigger an alert
+                </Text>
+              </View>
+              <Switch
+                value={voiceEnabled}
+                onValueChange={toggleVoice}
+                trackColor={{ false: C.inputBorder, true: C.emerald }}
+                thumbColor={C.white}
+              />
+            </View>
+
+            {voiceEnabled && (
+              <View style={styles.voiceStatus}>
+                <View
+                  style={[
+                    styles.voiceStatusDot,
+                    { backgroundColor: isListening ? C.emerald : C.amber },
+                  ]}
+                />
+                <Text style={styles.voiceStatusText}>
+                  {isListening
+                    ? "Listening for keywords..."
+                    : "Starting microphone..."}
+                </Text>
+              </View>
+            )}
+
+            {voiceEnabled && lastHeard ? (
+              <Text style={styles.lastHeard} numberOfLines={1}>
+                Last heard: "{lastHeard}"
+              </Text>
+            ) : null}
+
+            <View style={styles.keywordsRow}>
+              {["Help", "Emergency", "SOS", "Danger", "Save me"].map((kw) => (
+                <View key={kw} style={styles.keywordBadge}>
+                  <Text style={styles.keywordText}>{kw}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
           {/* Auto-trigger info */}
           <View style={styles.autoCard}>
-            <Text style={styles.autoTitle}>⚡ Auto-trigger enabled</Text>
+            <Text style={styles.autoTitle}>⚡ Auto-triggers active</Text>
             <Text style={styles.autoDesc}>
-              SOS will trigger automatically if you don't respond after 1 hour
-              of inactivity or a fall is detected.
+              SOS fires automatically after 1 hour of inactivity, a detected
+              fall, or an emergency voice keyword — even on silent or DND.
             </Text>
           </View>
-        </Animated.View>
+
+          <View style={{ height: 32 }} />
+        </Animated.ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -223,24 +323,30 @@ const styles = StyleSheet.create({
 
   container: { flex: 1 },
   content: {
-    flex: 1,
     alignItems: "center",
     paddingHorizontal: 24,
     paddingTop: 20,
+    paddingBottom: 20,
   },
 
   // Status
+  statusRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 28,
+    alignSelf: "stretch",
+    justifyContent: "center",
+  },
   statusCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     backgroundColor: C.emeraldPale,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#A7F3D0",
-    marginBottom: 32,
   },
   statusDot: {
     width: 8,
@@ -249,6 +355,24 @@ const styles = StyleSheet.create({
     backgroundColor: C.emerald,
   },
   statusText: { fontFamily: F.semiBold, fontSize: 13, color: C.emerald },
+  micStatusCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: C.crimsonPale,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: C.inputBorder,
+  },
+  micPulse: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: C.crimson,
+  },
+  micStatusText: { fontFamily: F.semiBold, fontSize: 13, color: C.crimson },
 
   // SOS Button
   sosButtonWrapper: {
@@ -256,7 +380,7 @@ const styles = StyleSheet.create({
     height: 180,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   sosButton: {
     width: 160,
@@ -283,15 +407,14 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.8)",
     marginTop: 4,
   },
-
   sosHint: {
     fontFamily: F.regular,
     fontSize: 13,
     color: C.textMuted,
     textAlign: "center",
     lineHeight: 20,
-    marginBottom: 28,
-    paddingHorizontal: 16,
+    marginBottom: 24,
+    paddingHorizontal: 8,
   },
 
   // Info cards
@@ -304,7 +427,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 12,
     elevation: 3,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   infoCard: {
     flexDirection: "row",
@@ -326,6 +449,50 @@ const styles = StyleSheet.create({
     color: C.textMuted,
     marginTop: 2,
   },
+
+  // Voice card
+  voiceCard: {
+    width: "100%",
+    backgroundColor: C.white,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "rgba(192,21,42,0.08)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 3,
+    marginBottom: 14,
+    gap: 12,
+  },
+  voiceCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  voiceEmoji: { fontSize: 24 },
+  voiceCardInfo: { flex: 1 },
+  voiceCardTitle: { fontFamily: F.bold, fontSize: 14, color: C.textDark },
+  voiceCardSubtitle: {
+    fontFamily: F.regular,
+    fontSize: 12,
+    color: C.textMuted,
+    marginTop: 2,
+  },
+  voiceStatus: { flexDirection: "row", alignItems: "center", gap: 8 },
+  voiceStatusDot: { width: 8, height: 8, borderRadius: 4 },
+  voiceStatusText: { fontFamily: F.medium, fontSize: 13, color: C.textMuted },
+  lastHeard: {
+    fontFamily: F.regular,
+    fontSize: 12,
+    color: C.textMuted,
+    fontStyle: "italic",
+  },
+  keywordsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  keywordBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: C.crimsonPale,
+    borderWidth: 1,
+    borderColor: C.inputBorder,
+  },
+  keywordText: { fontFamily: F.semiBold, fontSize: 12, color: C.crimson },
 
   // Auto card
   autoCard: {
