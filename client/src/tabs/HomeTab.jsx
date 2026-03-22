@@ -8,15 +8,17 @@ import {
   Animated,
   Dimensions,
   StatusBar,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 import { selectUser } from "../redux/slices/authSlice";
 
-
-
 const { width } = Dimensions.get("window");
+const CARD_GAP = 12;
+const CARD_WIDTH = (width - 40 - CARD_GAP) / 2;
 
+// ─── Design Tokens ────────────────────────────────────────────────────────
 const C = {
   bg: "#FFF8F8",
   white: "#FFFFFF",
@@ -29,13 +31,17 @@ const C = {
   emeraldPale: "#EDFBF3",
   amber: "#D97706",
   amberPale: "#FFFBEB",
+  purple: "#7C3AED",
+  purplePale: "#F5F3FF",
   textDark: "#1A0608",
   textMid: "#5C2D35",
   textMuted: "#9E7A7E",
   cardShadow: "rgba(192,21,42,0.08)",
 };
 
+// ─── Font map ─────────────────────────────────────────────────────────────
 const F = {
+  extraLight: "Manrope-ExtraLight",
   light: "Manrope-Light",
   regular: "Manrope-Regular",
   medium: "Manrope-Medium",
@@ -44,39 +50,63 @@ const F = {
   extraBold: "Manrope-ExtraBold",
 };
 
-// ── Placeholder data (will be replaced by real data in Phase 2/3)
+// ─── Local icon assets ────────────────────────────────────────────────────
+const ICONS = {
+  bell: require("../../assets/icons/bell.png"),
+  footprint: require("../../assets/icons/footprint.png"),
+  calories: require("../../assets/icons/calories.png"),
+  baby: require("../../assets/icons/baby.png"),
+  heartRate: require("../../assets/icons/rate.png"),
+  phone: require("../../assets/icons/call.png"),
+  ambulanza: require("../../assets/icons/WH1221_DP_A.png"),
+  calendar: require("../../assets/icons/calendar.png"),
+  security: require("../../assets/icons/security.png"),
+};
+
+// ─── Placeholder data ─────────────────────────────────────────────────────
+const STEPS = 8432;
+const KM = (STEPS * 0.000762).toFixed(2); // avg stride ~76.2cm
+
 const ACTIVITY_STATS = [
   {
-    icon: "👟",
+    key: "steps",
+    icon: ICONS.footprint,
     label: "Steps",
-    value: "8,432",
-    unit: "today",
+    value: STEPS.toLocaleString(),
+    sub: `${KM} km`,
     color: C.crimson,
     bg: C.crimsonPale,
+    large: true,
   },
   {
-    icon: "🔥",
+    key: "calories",
+    icon: ICONS.calories,
     label: "Calories",
     value: "1,240",
-    unit: "kcal",
+    sub: "kcal",
     color: C.amber,
     bg: C.amberPale,
+    large: false,
   },
   {
-    icon: "😴",
+    key: "sleep",
+    icon: ICONS.baby,
     label: "Sleep",
     value: "7.2",
-    unit: "hours",
-    color: "#7C3AED",
-    bg: "#F5F3FF",
+    sub: "hours",
+    color: C.purple,
+    bg: C.purplePale,
+    large: false,
   },
   {
-    icon: "❤️",
+    key: "heart",
+    icon: ICONS.heartRate,
     label: "Heart Rate",
     value: "72",
-    unit: "bpm",
+    sub: "bpm",
     color: C.crimsonLight,
     bg: C.crimsonPale,
+    large: false,
   },
 ];
 
@@ -104,48 +134,113 @@ const APPOINTMENTS = [
 const HEALTH_TIP =
   "Staying hydrated improves cognitive function by up to 30%. Aim for 8 glasses of water today.";
 
-// ─── Stat Card ──────────────────────────────────────────────────────────────
-function StatCard({ item, index }) {
-  const anim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(anim, {
-      toValue: 1,
-      duration: 400,
-      delay: index * 80,
-      useNativeDriver: true,
-    }).start();
-  }, []);
+// ─── Section header ───────────────────────────────────────────────────────
+function SectionHeader({ title, link, onLink }) {
   return (
-    <Animated.View
-      style={[
-        styles.statCard,
-        {
-          backgroundColor: item.bg,
-          opacity: anim,
-          transform: [
-            {
-              translateY: anim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [16, 0],
-              }),
-            },
-          ],
-        },
-      ]}>
-      <Text style={styles.statIcon}>{item.icon}</Text>
-      <Text style={[styles.statValue, { color: item.color }]}>
-        {item.value}
-      </Text>
-      <Text style={styles.statUnit}>{item.unit}</Text>
-      <Text style={styles.statLabel}>{item.label}</Text>
-    </Animated.View>
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {link && (
+        <TouchableOpacity onPress={onLink}>
+          <Text style={styles.sectionLink}>{link}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
-// ─── Main Screen ────────────────────────────────────────────────────────────
+// ─── Activity grid ────────────────────────────────────────────────────────
+function ActivityGrid() {
+  const anims = ACTIVITY_STATS.map(() => useRef(new Animated.Value(0)).current);
+
+  useEffect(() => {
+    Animated.stagger(
+      80,
+      anims.map((a) =>
+        Animated.timing(a, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ),
+    ).start();
+  }, []);
+
+  // Layout: steps takes full left column (2 rows), right column has 3 small cards stacked
+  // We'll do a proper 2x2 where steps spans left col
+  const [steps, calories, sleep, heart] = ACTIVITY_STATS;
+  const smallCards = [calories, sleep, heart];
+
+  return (
+    <View style={styles.activityGrid}>
+      {/* Left — Steps (large, spans height of 2 small cards) */}
+      <Animated.View
+        style={[
+          styles.statCardLarge,
+          {
+            backgroundColor: steps.bg,
+            opacity: anims[0],
+            transform: [
+              {
+                translateY: anims[0].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [16, 0],
+                }),
+              },
+            ],
+          },
+        ]}>
+        <Image
+          source={steps.icon}
+          style={[styles.statIconImg, { tintColor: steps.color }]}
+          resizeMode="contain"
+        />
+        <Text style={[styles.statValueLarge, { color: steps.color }]}>
+          {steps.value}
+        </Text>
+        <Text style={styles.statSubLarge}>{steps.sub}</Text>
+        <Text style={styles.statLabelLarge}>{steps.label}</Text>
+      </Animated.View>
+
+      {/* Right — 2x2 grid of small cards */}
+      <View style={styles.activityRight}>
+        {[calories, sleep, heart].map((item, i) => (
+          <Animated.View
+            key={item.key}
+            style={[
+              styles.statCardSmall,
+              {
+                backgroundColor: item.bg,
+                opacity: anims[i + 1],
+                transform: [
+                  {
+                    translateY: anims[i + 1].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [16, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}>
+            <Image
+              source={item.icon}
+              style={[styles.statIconSmall, { tintColor: item.color }]}
+              resizeMode="contain"
+            />
+            <Text style={[styles.statValueSmall, { color: item.color }]}>
+              {item.value}
+            </Text>
+            <Text style={styles.statSubSmall}>{item.sub}</Text>
+            <Text style={styles.statLabelSmall}>{item.label}</Text>
+          </Animated.View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────
 export default function HomeTab({ navigation }) {
   const user = useSelector(selectUser);
-  const headerAnim = useRef(new Animated.Value(0)).current;
 
   const getGreeting = () => {
     const h = new Date().getHours();
@@ -156,36 +251,13 @@ export default function HomeTab({ navigation }) {
 
   const firstName = user?.fullName?.split(" ")[0] || "there";
 
-  useEffect(() => {
-    Animated.timing(headerAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
-  }, []);
-
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={C.crimsonDeep} />
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}>
-        {/* ── Header ── */}
-        <Animated.View
-          style={[
-            styles.header,
-            {
-              opacity: headerAnim,
-              transform: [
-                {
-                  translateY: headerAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-12, 0],
-                  }),
-                },
-              ],
-            },
-          ]}>
+
+      {/* ── STATIC HEADER — outside ScrollView so it never moves ── */}
+      <SafeAreaView style={styles.headerSafe} edges={["top"]}>
+        <View style={styles.header}>
           {/* Hamburger */}
           <TouchableOpacity
             style={styles.menuBtn}
@@ -200,18 +272,32 @@ export default function HomeTab({ navigation }) {
             <Text style={styles.userName}>{firstName} 👋</Text>
           </View>
 
-          {/* Notification bell */}
+          {/* Bell icon from assets */}
           <TouchableOpacity style={styles.bellBtn}>
-            <Text style={styles.bellIcon}>🔔</Text>
+            <Image
+              source={ICONS.bell}
+              style={styles.bellImg}
+              resizeMode="contain"
+            />
             <View style={styles.bellBadge} />
           </TouchableOpacity>
-        </Animated.View>
+        </View>
+      </SafeAreaView>
 
-        {/* ── Safety Status Card ── */}
+      {/* ── SCROLLABLE CONTENT ── */}
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}>
+        {/* Safety Status */}
         <View style={styles.safetyCard}>
           <View style={styles.safetyLeft}>
             <View style={styles.safetyIconRing}>
-              <Text style={styles.safetyIcon}>🛡️</Text>
+              <Image
+                source={ICONS.security}
+                style={styles.safetyIconImg}
+                resizeMode="contain"
+              />
             </View>
             <View>
               <Text style={styles.safetyTitle}>You're Protected</Text>
@@ -226,62 +312,28 @@ export default function HomeTab({ navigation }) {
           </View>
         </View>
 
-        {/* ── Activity Stats ── */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Today's Activity</Text>
-          <TouchableOpacity>
-            <Text style={styles.sectionLink}>View all</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.statsRow}>
-          {ACTIVITY_STATS.map((item, i) => (
-            <StatCard key={i} item={item} index={i} />
-          ))}
-        </ScrollView>
+        {/* Activity Stats */}
+        <SectionHeader title="Today's Activity" link="View all" />
+        <ActivityGrid />
 
-        {/* ── Emergency Actions ── */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Emergency Actions</Text>
-        </View>
+        {/* Emergency Actions */}
+        <SectionHeader title="Emergency Actions" />
         <View style={styles.emergencyRow}>
-          {/* SOS */}
-          <TouchableOpacity
-            style={[styles.emergencyCard, { backgroundColor: C.crimson }]}
-            activeOpacity={0.85}>
-            <Text style={styles.emergencyEmoji}>🆘</Text>
-            <Text style={styles.emergencyLabel}>SOS</Text>
-            <Text style={styles.emergencySubLabel}>Alert contacts</Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={[styles.emergencyCard, { backgroundColor: C.white }]} activeOpacity={0.85}>
+  <Image source={ICONS.phone} style={styles.emergencyIcon} resizeMode="contain" />
+  <Text style={[styles.emergencyLabel, { color: C.crimson }]}>SOS</Text>
+  <Text style={[styles.emergencySubLabel, { color: C.textMuted }]}>Alert contacts</Text>
+</TouchableOpacity>
 
-          {/* Help */}
-          <TouchableOpacity
-            style={[styles.emergencyCard, { backgroundColor: C.amber }]}
-            activeOpacity={0.85}>
-            <Text style={styles.emergencyEmoji}>🙏</Text>
-            <Text style={styles.emergencyLabel}>Help</Text>
-            <Text style={styles.emergencySubLabel}>Reach support</Text>
-          </TouchableOpacity>
-
-          {/* Ambulance */}
-          <TouchableOpacity
-            style={[styles.emergencyCard, { backgroundColor: C.emerald }]}
-            activeOpacity={0.85}>
-            <Text style={styles.emergencyEmoji}>🚑</Text>
-            <Text style={styles.emergencyLabel}>Ambulance</Text>
-            <Text style={styles.emergencySubLabel}>Call EMS</Text>
-          </TouchableOpacity>
+<TouchableOpacity style={[styles.emergencyCard, { backgroundColor: C.white }]} activeOpacity={0.85}>
+  <Image source={ICONS.ambulanza} style={styles.emergencyIcon} resizeMode="contain" />
+  <Text style={[styles.emergencyLabel, { color: C.emerald }]}>Ambulance</Text>
+  <Text style={[styles.emergencySubLabel, { color: C.textMuted }]}>Call EMS</Text>
+</TouchableOpacity>
         </View>
 
-        {/* ── Medications ── */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Today's Medications</Text>
-          <TouchableOpacity>
-            <Text style={styles.sectionLink}>View all</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Medications */}
+        <SectionHeader title="Today's Medications" link="View all" />
         <View style={styles.card}>
           {MEDICATIONS.map((med, i) => (
             <View
@@ -321,40 +373,42 @@ export default function HomeTab({ navigation }) {
           ))}
         </View>
 
-        {/* ── Upcoming Appointments ── */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
-          <TouchableOpacity>
-            <Text style={styles.sectionLink}>Add new</Text>
-          </TouchableOpacity>
+        {/* Appointments */}
+        <SectionHeader title="Upcoming Appointments" link="Add new" />
+        <View style={styles.appointmentsWrapper}>
+          {APPOINTMENTS.map((apt, i) => (
+            <View
+              key={i}
+              style={[
+                styles.appointmentCard,
+                i < APPOINTMENTS.length - 1 && { marginBottom: 10 },
+              ]}>
+              <View style={styles.appointmentDateBox}>
+                <Text style={styles.appointmentDateText}>
+                  {apt.date.split(",")[1]?.trim().split(" ")[1]}
+                </Text>
+                <Text style={styles.appointmentMonthText}>
+                  {apt.date.split(",")[1]?.trim().split(" ")[0]}
+                </Text>
+              </View>
+              <View style={styles.appointmentInfo}>
+                <Text style={styles.appointmentDoctor}>{apt.doctor}</Text>
+                <Text style={styles.appointmentType}>{apt.type}</Text>
+                <View style={styles.appointmentTimeRow}>
+                  <Image
+                    source={ICONS.calendar}
+                    style={styles.calendarIcon}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.appointmentTime}>{apt.time}</Text>
+                </View>
+              </View>
+              <Text style={styles.appointmentChevron}>›</Text>
+            </View>
+          ))}
         </View>
-        {APPOINTMENTS.map((apt, i) => (
-          <View
-            key={i}
-            style={[
-              styles.appointmentCard,
-              { marginBottom: i < APPOINTMENTS.length - 1 ? 10 : 0 },
-            ]}>
-            <View style={styles.appointmentDateBox}>
-              <Text style={styles.appointmentDateText}>
-                {apt.date.split(",")[1]?.trim().split(" ")[1]}
-              </Text>
-              <Text style={styles.appointmentMonthText}>
-                {apt.date.split(",")[1]?.trim().split(" ")[0]}
-              </Text>
-            </View>
-            <View style={styles.appointmentInfo}>
-              <Text style={styles.appointmentDoctor}>{apt.doctor}</Text>
-              <Text style={styles.appointmentType}>{apt.type}</Text>
-              <Text style={styles.appointmentTime}>🕐 {apt.time}</Text>
-            </View>
-            <View style={styles.appointmentChevron}>
-              <Text style={{ color: C.textMuted, fontSize: 20 }}>›</Text>
-            </View>
-          </View>
-        ))}
 
-        {/* ── Health Tip ── */}
+        {/* Health Tip */}
         <View style={styles.tipCard}>
           <View style={styles.tipHeader}>
             <Text style={styles.tipEmoji}>💡</Text>
@@ -363,36 +417,47 @@ export default function HomeTab({ navigation }) {
           <Text style={styles.tipText}>{HEALTH_TIP}</Text>
         </View>
 
-        <View style={{ height: 24 }} />
+        <View style={{ height: 32 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  scroll: { paddingBottom: 20 },
+  root: { flex: 1, backgroundColor: C.bg },
 
-  // Header
+  // Static header
+  headerSafe: { backgroundColor: C.crimsonDeep },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
+    paddingTop: 4,
+    paddingBottom: 14,
     backgroundColor: C.crimsonDeep,
   },
   menuBtn: { gap: 5, padding: 4 },
-  menuLine: { width: 22, height: 2, backgroundColor: C.white, borderRadius: 2 },
+  menuLine: {
+    width: 22,
+    height: 2.5,
+    backgroundColor: C.white,
+    borderRadius: 2,
+  },
   headerCenter: { flex: 1, alignItems: "center" },
   greeting: {
-    fontFamily: F.regular,
+    fontFamily: F.medium,
     fontSize: 12,
     color: "rgba(255,255,255,0.7)",
   },
-  userName: { fontFamily: F.extraBold, fontSize: 18, color: C.white },
+  userName: {
+    fontFamily: F.extraBold,
+    fontSize: 19,
+    color: C.white,
+    letterSpacing: -0.3,
+  },
   bellBtn: { padding: 4, position: "relative" },
-  bellIcon: { fontSize: 20 },
+  bellImg: { width: 30, height: 30, tintColor: C.white },
   bellBadge: {
     position: "absolute",
     top: 4,
@@ -405,7 +470,11 @@ const styles = StyleSheet.create({
     borderColor: C.crimsonDeep,
   },
 
-  // Safety card
+  // Scrollable
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 20 },
+
+  // Safety
   safetyCard: {
     marginHorizontal: 20,
     marginTop: 16,
@@ -420,9 +489,9 @@ const styles = StyleSheet.create({
   },
   safetyLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   safetyIconRing: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: C.white,
     alignItems: "center",
     justifyContent: "center",
@@ -432,10 +501,10 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  safetyIcon: { fontSize: 20 },
-  safetyTitle: { fontFamily: F.bold, fontSize: 14, color: C.emerald },
+  safetyIconImg: { width: 22, height: 22, tintColor: C.emerald },
+  safetyTitle: { fontFamily: F.extraBold, fontSize: 14, color: C.emerald },
   safetySubtitle: {
-    fontFamily: F.regular,
+    fontFamily: F.medium,
     fontSize: 12,
     color: "#059669",
     marginTop: 1,
@@ -462,7 +531,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  // Section headers
+  // Section header
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -471,53 +540,93 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 12,
   },
-  sectionTitle: { fontFamily: F.bold, fontSize: 16, color: C.textDark },
-  sectionLink: { fontFamily: F.semiBold, fontSize: 13, color: C.crimson },
+  sectionTitle: { fontFamily: F.extraBold, fontSize: 16, color: C.textDark },
+  sectionLink: { fontFamily: F.bold, fontSize: 13, color: C.crimson },
 
-  // Stats
-  statsRow: { paddingHorizontal: 20, gap: 12 },
-  statCard: {
-    width: 100,
-    borderRadius: 16,
-    padding: 14,
-    alignItems: "flex-start",
-    gap: 2,
+  // Activity grid
+  activityGrid: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    gap: CARD_GAP,
+  },
+  statCardLarge: {
+    width: CARD_WIDTH,
+    borderRadius: 18,
+    padding: 16,
+    justifyContent: "flex-end",
+    minHeight: 210,
     shadowColor: C.cardShadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 1,
     shadowRadius: 12,
     elevation: 3,
   },
-  statIcon: { fontSize: 22, marginBottom: 4 },
-  statValue: { fontFamily: F.extraBold, fontSize: 20 },
-  statUnit: { fontFamily: F.regular, fontSize: 11, color: C.textMuted },
-  statLabel: {
+  statIconImg: { width: 36, height: 36, marginBottom: 12 },
+  statValueLarge: {
+    fontFamily: F.extraBold,
+    fontSize: 28,
+    letterSpacing: -0.5,
+  },
+  statSubLarge: {
     fontFamily: F.semiBold,
-    fontSize: 12,
+    fontSize: 13,
     color: C.textMuted,
+    marginTop: 2,
+  },
+  statLabelLarge: {
+    fontFamily: F.bold,
+    fontSize: 13,
+    color: C.textMid,
+    marginTop: 4,
+  },
+
+  activityRight: {
+    flex: 1,
+    gap: CARD_GAP,
+  },
+  statCardSmall: {
+    borderRadius: 16,
+    padding: 12,
+    flex: 1,
+    shadowColor: C.cardShadow,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statIconSmall: { width: 22, height: 22, marginBottom: 6 },
+  statValueSmall: {
+    fontFamily: F.extraBold,
+    fontSize: 18,
+    letterSpacing: -0.3,
+  },
+  statSubSmall: { fontFamily: F.medium, fontSize: 10, color: C.textMuted },
+  statLabelSmall: {
+    fontFamily: F.semiBold,
+    fontSize: 11,
+    color: C.textMid,
     marginTop: 2,
   },
 
   // Emergency
-  emergencyRow: { flexDirection: "row", paddingHorizontal: 20, gap: 10 },
+  emergencyRow: { flexDirection: "row", paddingHorizontal: 20, gap: 12 },
   emergencyCard: {
-    flex: 1,
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 10,
-    alignItems: "center",
-    gap: 4,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  emergencyEmoji: { fontSize: 24 },
-  emergencyLabel: { fontFamily: F.bold, fontSize: 13, color: C.white },
+  flex: 1, borderRadius: 18, paddingVertical: 20, paddingHorizontal: 12,
+  alignItems: "center", gap: 6,
+  borderWidth: 1.5,
+  borderColor: C.inputBorder,         // ← subtle red-tinted border
+  shadowColor: C.cardShadow,
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 1,
+  shadowRadius: 10,
+  elevation: 3,
+},
+  emergencyIcon: { width: 36, height: 36},
+  emergencyLabel: { fontFamily: F.extraBold, fontSize: 15, color: C.white },
   emergencySubLabel: {
-    fontFamily: F.regular,
-    fontSize: 10,
-    color: "rgba(255,255,255,0.8)",
+    fontFamily: F.medium,
+    fontSize: 11,
+    color: "rgba(255,255,255,0.85)",
     textAlign: "center",
   },
 
@@ -537,22 +646,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingVertical: 10,
+    paddingVertical: 11,
   },
   medRowBorder: { borderBottomWidth: 1, borderBottomColor: "#FFF0F1" },
   medDot: { width: 10, height: 10, borderRadius: 5 },
   medInfo: { flex: 1 },
-  medName: { fontFamily: F.semiBold, fontSize: 14, color: C.textDark },
+  medName: { fontFamily: F.bold, fontSize: 14, color: C.textDark },
   medDose: {
-    fontFamily: F.regular,
+    fontFamily: F.medium,
     fontSize: 12,
     color: C.textMuted,
     marginTop: 2,
   },
-  medStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  medStatus: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   medStatusText: { fontFamily: F.bold, fontSize: 11 },
 
   // Appointments
+  appointmentsWrapper: { gap: 0 },
   appointmentCard: {
     marginHorizontal: 20,
     backgroundColor: C.white,
@@ -568,46 +678,48 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   appointmentDateBox: {
-    width: 48,
-    height: 52,
-    borderRadius: 12,
+    width: 50,
+    height: 54,
+    borderRadius: 13,
     backgroundColor: C.crimsonPale,
     alignItems: "center",
     justifyContent: "center",
   },
   appointmentDateText: {
     fontFamily: F.extraBold,
-    fontSize: 18,
+    fontSize: 20,
     color: C.crimson,
   },
-  appointmentMonthText: {
-    fontFamily: F.medium,
-    fontSize: 10,
-    color: C.crimson,
-  },
+  appointmentMonthText: { fontFamily: F.bold, fontSize: 10, color: C.crimson },
   appointmentInfo: { flex: 1 },
-  appointmentDoctor: { fontFamily: F.bold, fontSize: 14, color: C.textDark },
+  appointmentDoctor: {
+    fontFamily: F.extraBold,
+    fontSize: 14,
+    color: C.textDark,
+  },
   appointmentType: {
-    fontFamily: F.regular,
+    fontFamily: F.medium,
     fontSize: 12,
     color: C.textMuted,
     marginTop: 2,
   },
-  appointmentTime: {
-    fontFamily: F.medium,
-    fontSize: 12,
-    color: C.textMid,
-    marginTop: 4,
+  appointmentTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 5,
   },
-  appointmentChevron: { paddingLeft: 4 },
+  calendarIcon: { width: 13, height: 13, tintColor: C.textMid },
+  appointmentTime: { fontFamily: F.semiBold, fontSize: 12, color: C.textMid },
+  appointmentChevron: { fontSize: 22, color: C.textMuted, fontFamily: F.light },
 
   // Tip
   tipCard: {
     marginHorizontal: 20,
     marginTop: 20,
     backgroundColor: C.crimsonDeep,
-    borderRadius: 16,
-    padding: 18,
+    borderRadius: 18,
+    padding: 20,
   },
   tipHeader: {
     flexDirection: "row",
@@ -619,13 +731,13 @@ const styles = StyleSheet.create({
   tipLabel: {
     fontFamily: F.bold,
     fontSize: 10,
-    color: "rgba(255,255,255,0.6)",
-    letterSpacing: 1.5,
+    color: "rgba(255,255,255,0.55)",
+    letterSpacing: 1.8,
   },
   tipText: {
-    fontFamily: F.regular,
+    fontFamily: F.semiBold,
     fontSize: 14,
-    color: "rgba(255,255,255,0.9)",
-    lineHeight: 22,
+    color: "rgba(255,255,255,0.92)",
+    lineHeight: 23,
   },
 });
