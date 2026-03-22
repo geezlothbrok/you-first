@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,10 +9,13 @@ import {
   Dimensions,
   StatusBar,
   Image,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
-import { selectUser } from "../redux/slices/authSlice";
+import { selectUser, selectToken } from "../redux/slices/authSlice";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import SafetyEngine from "../components/SafetyEngine";
 
 const { width } = Dimensions.get("window");
@@ -40,7 +43,6 @@ const C = {
   cardShadow: "rgba(192,21,42,0.08)",
 };
 
-// ─── Font map ─────────────────────────────────────────────────────────────
 const F = {
   extraLight: "Manrope-ExtraLight",
   light: "Manrope-Light",
@@ -57,16 +59,24 @@ const ICONS = {
   footprint: require("../../assets/icons/footprint.png"),
   calories: require("../../assets/icons/calories.png"),
   baby: require("../../assets/icons/baby.png"),
-  heartRate: require("../../assets/icons/rate.png"),
-  phone: require("../../assets/icons/call.png"),
-  ambulanza: require("../../assets/icons/WH1221_DP_A.png"),
-  calendars: require("../../assets/icons/calendar.png"),
+  heartRate: require("../../assets/icons/heart-rate.png"),
+  phone: require("../../assets/icons/phone.png"),
+  ambulanza: require("../../assets/icons/ambulanza.png"),
+  calendar: require("../../assets/icons/calendar-image.png"),
   security: require("../../assets/icons/security.png"),
 };
 
-// ─── Placeholder data ─────────────────────────────────────────────────────
+// ─── API URLs ─────────────────────────────────────────────────────────────
+const MEDS_API = "http://localhost:3000/api/medications/today";
+const APTS_API = "http://localhost:3000/api/appointments/upcoming";
+
+// ─── Cache keys ───────────────────────────────────────────────────────────
+const MEDS_CACHE = "medications_today_cache";
+const APTS_CACHE = "appointments_cache_upcoming";
+
+// ─── Placeholder activity stats (Phase 4 — sensor data) ──────────────────
 const STEPS = 8432;
-const KM = (STEPS * 0.000762).toFixed(2); // avg stride ~76.2cm
+const KM = (STEPS * 0.000762).toFixed(2);
 
 const ACTIVITY_STATS = [
   {
@@ -111,30 +121,6 @@ const ACTIVITY_STATS = [
   },
 ];
 
-const MEDICATIONS = [
-  { name: "Metformin", dose: "500mg", time: "8:00 AM", taken: true },
-  { name: "Lisinopril", dose: "10mg", time: "2:00 PM", taken: false },
-  { name: "Vitamin D", dose: "1000IU", time: "8:00 PM", taken: false },
-];
-
-const APPOINTMENTS = [
-  {
-    doctor: "Dr. Mensah",
-    type: "General Checkup",
-    date: "Mon, Apr 7",
-    time: "10:30 AM",
-  },
-  {
-    doctor: "Dr. Asante",
-    type: "Cardiology",
-    date: "Wed, Apr 16",
-    time: "2:00 PM",
-  },
-];
-
-const HEALTH_TIP =
-  "Staying hydrated improves cognitive function by up to 30%. Aim for 8 glasses of water today.";
-
 // ─── Section header ───────────────────────────────────────────────────────
 function SectionHeader({ title, link, onLink }) {
   return (
@@ -166,14 +152,11 @@ function ActivityGrid() {
     ).start();
   }, []);
 
-  // Layout: steps takes full left column (2 rows), right column has 3 small cards stacked
-  // We'll do a proper 2x2 where steps spans left col
   const [steps, calories, sleep, heart] = ACTIVITY_STATS;
-  const smallCards = [calories, sleep, heart];
 
   return (
     <View style={styles.activityGrid}>
-      {/* Left — Steps (large, spans height of 2 small cards) */}
+      {/* Steps — large left card */}
       <Animated.View
         style={[
           styles.statCardLarge,
@@ -202,7 +185,7 @@ function ActivityGrid() {
         <Text style={styles.statLabelLarge}>{steps.label}</Text>
       </Animated.View>
 
-      {/* Right — 2x2 grid of small cards */}
+      {/* Right column — 3 small cards */}
       <View style={styles.activityRight}>
         {[calories, sleep, heart].map((item, i) => (
           <Animated.View
@@ -242,6 +225,15 @@ function ActivityGrid() {
 // ─── Main Screen ──────────────────────────────────────────────────────────
 export default function HomeTab({ navigation }) {
   const user = useSelector(selectUser);
+  const token = useSelector(selectToken);
+
+  const [todayMeds, setTodayMeds] = useState([]);
+  const [upcomingApts, setUpcomingApts] = useState([]);
+  const [medsLoading, setMedsLoading] = useState(true);
+  const [aptsLoading, setAptsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const headerAnim = useRef(new Animated.Value(0)).current;
 
   const getGreeting = () => {
     const h = new Date().getHours();
@@ -252,16 +244,127 @@ export default function HomeTab({ navigation }) {
 
   const firstName = user?.fullName?.split(" ")[0] || "there";
 
+  useEffect(() => {
+    Animated.timing(headerAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+    loadData();
+  }, []);
+
+  // ── Load medications and appointments in parallel ─────────────────────
+  const loadData = useCallback(async () => {
+    await Promise.all([loadMedications(), loadAppointments()]);
+    setRefreshing(false);
+  }, [token]);
+
+  const loadMedications = async () => {
+    try {
+      // Show cached first
+      const cached = await AsyncStorage.getItem(MEDS_CACHE);
+      if (cached) setTodayMeds(JSON.parse(cached));
+
+      const res = await fetch(MEDS_API, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTodayMeds(data.medications);
+        await AsyncStorage.setItem(
+          MEDS_CACHE,
+          JSON.stringify(data.medications),
+        );
+      }
+    } catch {
+      // Use cached
+    } finally {
+      setMedsLoading(false);
+    }
+  };
+
+  const loadAppointments = async () => {
+    try {
+      const cached = await AsyncStorage.getItem(APTS_CACHE);
+      if (cached) setUpcomingApts(JSON.parse(cached));
+
+      const res = await fetch(APTS_API, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUpcomingApts(data.appointments);
+        await AsyncStorage.setItem(
+          APTS_CACHE,
+          JSON.stringify(data.appointments),
+        );
+      }
+    } catch {
+      // Use cached
+    } finally {
+      setAptsLoading(false);
+    }
+  };
+
+  const handleMarkTaken = async (med) => {
+    if (med.takenToday) return;
+    try {
+      await fetch(`http://localhost:3000/api/medications/${med._id}/taken`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      // Optimistic update
+      const updated = todayMeds.map((m) =>
+        m._id === med._id ? { ...m, takenToday: true } : m,
+      );
+      setTodayMeds(updated);
+      await AsyncStorage.setItem(MEDS_CACHE, JSON.stringify(updated));
+    } catch {
+      // Silent fail
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
+  // ── Format appointment date ───────────────────────────────────────────
+  const formatAptDate = (dateStr) => {
+    const date = new Date(dateStr);
+    return {
+      day: date.getDate(),
+      month: date.toLocaleString("en", { month: "short" }).toUpperCase(),
+    };
+  };
+
+  const HEALTH_TIP =
+    "Staying hydrated improves cognitive function by up to 30%. Aim for 8 glasses of water today.";
+
   return (
     <View style={styles.root}>
-      {/* Safety Engine — silent, no UI */}
-      <SafetyEngine enabled={true} />
-
       <StatusBar barStyle="light-content" backgroundColor={C.crimsonDeep} />
 
-      {/* Static header */}
+      {/* Safety Engine — silent background monitoring */}
+      <SafetyEngine enabled={true} />
+
+      {/* ── Static header ── */}
       <SafeAreaView style={styles.headerSafe} edges={["top"]}>
-        <View style={styles.header}>
+        <Animated.View
+          style={[
+            styles.header,
+            {
+              opacity: headerAnim,
+              transform: [
+                {
+                  translateY: headerAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-12, 0],
+                  }),
+                },
+              ],
+            },
+          ]}>
           <TouchableOpacity
             style={styles.menuBtn}
             onPress={() => navigation.openDrawer()}>
@@ -269,12 +372,10 @@ export default function HomeTab({ navigation }) {
             <View style={[styles.menuLine, { width: 16 }]} />
             <View style={styles.menuLine} />
           </TouchableOpacity>
-
           <View style={styles.headerCenter}>
             <Text style={styles.greeting}>{getGreeting()},</Text>
             <Text style={styles.userName}>{firstName} 👋</Text>
           </View>
-
           <TouchableOpacity style={styles.bellBtn}>
             <Image
               source={ICONS.bell}
@@ -283,15 +384,23 @@ export default function HomeTab({ navigation }) {
             />
             <View style={styles.bellBadge} />
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </SafeAreaView>
 
-      {/* ── SCROLLABLE CONTENT ── */}
+      {/* ── Scrollable content ── */}
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
-        {/* Safety Status */}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={C.crimson}
+            colors={[C.crimson]}
+          />
+        }>
+        {/* Safety status */}
         <View style={styles.safetyCard}>
           <View style={styles.safetyLeft}>
             <View style={styles.safetyIconRing}>
@@ -314,16 +423,17 @@ export default function HomeTab({ navigation }) {
           </View>
         </View>
 
-        {/* Activity Stats */}
+        {/* Activity stats */}
         <SectionHeader title="Today's Activity" link="View all" />
         <ActivityGrid />
 
-        {/* Emergency Actions */}
+        {/* Emergency actions */}
         <SectionHeader title="Emergency Actions" />
         <View style={styles.emergencyRow}>
           <TouchableOpacity
             style={[styles.emergencyCard, { backgroundColor: C.white }]}
-            activeOpacity={0.85}>
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate("SOS")}>
             <Image
               source={ICONS.phone}
               style={styles.emergencyIcon}
@@ -354,83 +464,158 @@ export default function HomeTab({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Medications */}
-        <SectionHeader title="Today's Medications" link="View all" />
+        {/* ── Today's Medications — REAL DATA ── */}
+        <SectionHeader
+          title="Today's Medications"
+          link="View all"
+          onLink={() => navigation.navigate("Medications")}
+        />
         <View style={styles.card}>
-          {MEDICATIONS.map((med, i) => (
-            <View
-              key={i}
-              style={[
-                styles.medRow,
-                i < MEDICATIONS.length - 1 && styles.medRowBorder,
-              ]}>
-              <View
+          {medsLoading ? (
+            <ActivityIndicator
+              color={C.crimson}
+              size="small"
+              style={{ padding: 16 }}
+            />
+          ) : todayMeds.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyCardText}>
+                💊 No medications scheduled for today
+              </Text>
+            </View>
+          ) : (
+            todayMeds.slice(0, 4).map((med, i) => (
+              <TouchableOpacity
+                key={med._id}
                 style={[
-                  styles.medDot,
-                  { backgroundColor: med.taken ? C.emerald : C.inputBorder },
+                  styles.medRow,
+                  i < Math.min(todayMeds.length, 4) - 1 && styles.medRowBorder,
                 ]}
-              />
-              <View style={styles.medInfo}>
-                <Text style={styles.medName}>{med.name}</Text>
-                <Text style={styles.medDose}>
-                  {med.dose} · {med.time}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.medStatus,
-                  {
-                    backgroundColor: med.taken ? C.emeraldPale : C.crimsonPale,
-                  },
-                ]}>
-                <Text
+                onPress={() => handleMarkTaken(med)}
+                activeOpacity={0.75}>
+                <View
                   style={[
-                    styles.medStatusText,
-                    { color: med.taken ? C.emerald : C.crimson },
-                  ]}>
-                  {med.taken ? "Taken ✓" : "Due"}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* Appointments */}
-        <SectionHeader title="Upcoming Appointments" link="Add new" />
-        <View style={styles.appointmentsWrapper}>
-          {APPOINTMENTS.map((apt, i) => (
-            <View
-              key={i}
-              style={[
-                styles.appointmentCard,
-                i < APPOINTMENTS.length - 1 && { marginBottom: 10 },
-              ]}>
-              <View style={styles.appointmentDateBox}>
-                <Text style={styles.appointmentDateText}>
-                  {apt.date.split(",")[1]?.trim().split(" ")[1]}
-                </Text>
-                <Text style={styles.appointmentMonthText}>
-                  {apt.date.split(",")[1]?.trim().split(" ")[0]}
-                </Text>
-              </View>
-              <View style={styles.appointmentInfo}>
-                <Text style={styles.appointmentDoctor}>{apt.doctor}</Text>
-                <Text style={styles.appointmentType}>{apt.type}</Text>
-                <View style={styles.appointmentTimeRow}>
-                  <Image
-                    source={ICONS.calendars}
-                    style={styles.calendarIcon}
-                    resizeMode="contain"
-                  />
-                  <Text style={styles.appointmentTime}>{apt.time}</Text>
+                    styles.medDot,
+                    {
+                      backgroundColor: med.takenToday
+                        ? C.emerald
+                        : C.inputBorder,
+                    },
+                  ]}
+                />
+                <View style={styles.medInfo}>
+                  <Text
+                    style={[
+                      styles.medName,
+                      med.takenToday && styles.medNameTaken,
+                    ]}>
+                    {med.name}
+                  </Text>
+                  <Text style={styles.medDose}>
+                    {med.dosage} · {med.times?.join(", ")}
+                  </Text>
                 </View>
-              </View>
-              <Text style={styles.appointmentChevron}>›</Text>
-            </View>
-          ))}
+                <View
+                  style={[
+                    styles.medStatus,
+                    {
+                      backgroundColor: med.takenToday
+                        ? C.emeraldPale
+                        : C.crimsonPale,
+                    },
+                  ]}>
+                  <Text
+                    style={[
+                      styles.medStatusText,
+                      { color: med.takenToday ? C.emerald : C.crimson },
+                    ]}>
+                    {med.takenToday ? "Taken ✓" : "Due"}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+          {todayMeds.length > 4 && (
+            <TouchableOpacity
+              style={styles.seeMoreRow}
+              onPress={() => navigation.navigate("Medications")}>
+              <Text style={styles.seeMoreText}>
+                +{todayMeds.length - 4} more · View all
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Health Tip */}
+        {/* ── Upcoming Appointments — REAL DATA ── */}
+        <SectionHeader
+          title="Upcoming Appointments"
+          link="Add new"
+          onLink={() => navigation.navigate("Appointments")}
+        />
+        {aptsLoading ? (
+          <ActivityIndicator
+            color={C.crimson}
+            size="small"
+            style={{ padding: 16 }}
+          />
+        ) : upcomingApts.length === 0 ? (
+          <View style={[styles.card, styles.emptyCard]}>
+            <Text style={styles.emptyCardText}>
+              📅 No upcoming appointments
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.appointmentsWrapper}>
+            {upcomingApts.slice(0, 3).map((apt, i) => {
+              const { day, month } = formatAptDate(apt.date);
+              return (
+                <TouchableOpacity
+                  key={apt._id}
+                  style={[
+                    styles.appointmentCard,
+                    i < Math.min(upcomingApts.length, 3) - 1 && {
+                      marginBottom: 10,
+                    },
+                  ]}
+                  onPress={() => navigation.navigate("Appointments")}
+                  activeOpacity={0.8}>
+                  <View style={styles.appointmentDateBox}>
+                    <Text style={styles.appointmentDateText}>{day}</Text>
+                    <Text style={styles.appointmentMonthText}>{month}</Text>
+                  </View>
+                  <View style={styles.appointmentInfo}>
+                    <Text style={styles.appointmentDoctor}>
+                      {apt.doctorName}
+                    </Text>
+                    <Text style={styles.appointmentType}>
+                      {apt.specialty || apt.type}
+                    </Text>
+                    <View style={styles.appointmentTimeRow}>
+                      <Image
+                        source={ICONS.calendar}
+                        style={styles.calendarIcon}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.appointmentTime}>{apt.time}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.appointmentChevron}>›</Text>
+                </TouchableOpacity>
+              );
+            })}
+            {upcomingApts.length > 3 && (
+              <TouchableOpacity
+                style={styles.seeMoreBtn}
+                onPress={() => navigation.navigate("Appointments")}>
+                <Text style={styles.seeMoreText}>
+                  +{upcomingApts.length - 3} more appointments
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Health tip */}
         <View style={styles.tipCard}>
           <View style={styles.tipHeader}>
             <Text style={styles.tipEmoji}>💡</Text>
@@ -449,7 +634,7 @@ export default function HomeTab({ navigation }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
 
-  // Static header
+  // Header
   headerSafe: { backgroundColor: C.crimsonDeep },
   header: {
     flexDirection: "row",
@@ -479,7 +664,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   bellBtn: { padding: 4, position: "relative" },
-  bellImg: { width: 30, height: 30, tintColor: C.white },
+  bellImg: { width: 24, height: 24, tintColor: C.white },
   bellBadge: {
     position: "absolute",
     top: 4,
@@ -492,11 +677,10 @@ const styles = StyleSheet.create({
     borderColor: C.crimsonDeep,
   },
 
-  // Scrollable
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 20 },
 
-  // Safety
+  // Safety card
   safetyCard: {
     marginHorizontal: 20,
     marginTop: 16,
@@ -566,11 +750,7 @@ const styles = StyleSheet.create({
   sectionLink: { fontFamily: F.bold, fontSize: 13, color: C.crimson },
 
   // Activity grid
-  activityGrid: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    gap: CARD_GAP,
-  },
+  activityGrid: { flexDirection: "row", paddingHorizontal: 20, gap: CARD_GAP },
   statCardLarge: {
     width: CARD_WIDTH,
     borderRadius: 18,
@@ -601,11 +781,7 @@ const styles = StyleSheet.create({
     color: C.textMid,
     marginTop: 4,
   },
-
-  activityRight: {
-    flex: 1,
-    gap: CARD_GAP,
-  },
+  activityRight: { flex: 1, gap: CARD_GAP },
   statCardSmall: {
     borderRadius: 16,
     padding: 12,
@@ -640,7 +816,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     borderWidth: 1.5,
-    borderColor: C.inputBorder, // ← subtle red-tinted border
+    borderColor: C.inputBorder,
     shadowColor: C.cardShadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 1,
@@ -648,15 +824,14 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   emergencyIcon: { width: 36, height: 36 },
-  emergencyLabel: { fontFamily: F.extraBold, fontSize: 15, color: C.white },
+  emergencyLabel: { fontFamily: F.extraBold, fontSize: 15 },
   emergencySubLabel: {
     fontFamily: F.medium,
     fontSize: 11,
-    color: "rgba(255,255,255,0.85)",
     textAlign: "center",
   },
 
-  // Medications
+  // Card wrapper
   card: {
     marginHorizontal: 20,
     backgroundColor: C.white,
@@ -668,6 +843,16 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 3,
   },
+
+  // Empty card
+  emptyCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+  },
+  emptyCardText: { fontFamily: F.medium, fontSize: 13, color: C.textMuted },
+
+  // Medications
   medRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -678,6 +863,7 @@ const styles = StyleSheet.create({
   medDot: { width: 10, height: 10, borderRadius: 5 },
   medInfo: { flex: 1 },
   medName: { fontFamily: F.bold, fontSize: 14, color: C.textDark },
+  medNameTaken: { textDecorationLine: "line-through", color: C.textMuted },
   medDose: {
     fontFamily: F.medium,
     fontSize: 12,
@@ -686,6 +872,14 @@ const styles = StyleSheet.create({
   },
   medStatus: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   medStatusText: { fontFamily: F.bold, fontSize: 11 },
+  seeMoreRow: { paddingTop: 10, alignItems: "center" },
+  seeMoreBtn: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  seeMoreText: { fontFamily: F.semiBold, fontSize: 13, color: C.crimson },
 
   // Appointments
   appointmentsWrapper: { gap: 0 },
@@ -735,7 +929,7 @@ const styles = StyleSheet.create({
     gap: 5,
     marginTop: 5,
   },
-  calendarIcon: { width: 13, height: 13, tintColor: C.textMid },
+  calendarIcon: { width: 13, height: 13 },
   appointmentTime: { fontFamily: F.semiBold, fontSize: 12, color: C.textMid },
   appointmentChevron: { fontSize: 22, color: C.textMuted, fontFamily: F.light },
 
