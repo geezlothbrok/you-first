@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 import { selectUser } from "../redux/slices/authSlice";
+import SafetyEngine from "../components/SafetyEngine";
 
 const { width } = Dimensions.get("window");
 const CARD_GAP = 12;
@@ -253,12 +254,14 @@ export default function HomeTab({ navigation }) {
 
   return (
     <View style={styles.root}>
+      {/* Safety Engine — silent, no UI */}
+      <SafetyEngine enabled={true} />
+
       <StatusBar barStyle="light-content" backgroundColor={C.crimsonDeep} />
 
-      {/* ── STATIC HEADER — outside ScrollView so it never moves ── */}
+      {/* Static header */}
       <SafeAreaView style={styles.headerSafe} edges={["top"]}>
         <View style={styles.header}>
-          {/* Hamburger */}
           <TouchableOpacity
             style={styles.menuBtn}
             onPress={() => navigation.openDrawer()}>
@@ -272,7 +275,6 @@ export default function HomeTab({ navigation }) {
             <Text style={styles.userName}>{firstName} 👋</Text>
           </View>
 
-          {/* Bell icon from assets */}
           <TouchableOpacity style={styles.bellBtn}>
             <Image
               source={ICONS.bell}
@@ -319,17 +321,37 @@ export default function HomeTab({ navigation }) {
         {/* Emergency Actions */}
         <SectionHeader title="Emergency Actions" />
         <View style={styles.emergencyRow}>
-          <TouchableOpacity style={[styles.emergencyCard, { backgroundColor: C.white }]} activeOpacity={0.85}>
-  <Image source={ICONS.phone} style={styles.emergencyIcon} resizeMode="contain" />
-  <Text style={[styles.emergencyLabel, { color: C.crimson }]}>SOS</Text>
-  <Text style={[styles.emergencySubLabel, { color: C.textMuted }]}>Alert contacts</Text>
-</TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.emergencyCard, { backgroundColor: C.white }]}
+            activeOpacity={0.85}>
+            <Image
+              source={ICONS.phone}
+              style={styles.emergencyIcon}
+              resizeMode="contain"
+            />
+            <Text style={[styles.emergencyLabel, { color: C.crimson }]}>
+              SOS
+            </Text>
+            <Text style={[styles.emergencySubLabel, { color: C.textMuted }]}>
+              Alert contacts
+            </Text>
+          </TouchableOpacity>
 
-<TouchableOpacity style={[styles.emergencyCard, { backgroundColor: C.white }]} activeOpacity={0.85}>
-  <Image source={ICONS.ambulanza} style={styles.emergencyIcon} resizeMode="contain" />
-  <Text style={[styles.emergencyLabel, { color: C.emerald }]}>Ambulance</Text>
-  <Text style={[styles.emergencySubLabel, { color: C.textMuted }]}>Call EMS</Text>
-</TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.emergencyCard, { backgroundColor: C.white }]}
+            activeOpacity={0.85}>
+            <Image
+              source={ICONS.ambulanza}
+              style={styles.emergencyIcon}
+              resizeMode="contain"
+            />
+            <Text style={[styles.emergencyLabel, { color: C.emerald }]}>
+              Ambulance
+            </Text>
+            <Text style={[styles.emergencySubLabel, { color: C.textMuted }]}>
+              Call EMS
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Medications */}
@@ -611,17 +633,21 @@ const styles = StyleSheet.create({
   // Emergency
   emergencyRow: { flexDirection: "row", paddingHorizontal: 20, gap: 12 },
   emergencyCard: {
-  flex: 1, borderRadius: 18, paddingVertical: 20, paddingHorizontal: 12,
-  alignItems: "center", gap: 6,
-  borderWidth: 1.5,
-  borderColor: C.inputBorder,         // ← subtle red-tinted border
-  shadowColor: C.cardShadow,
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 1,
-  shadowRadius: 10,
-  elevation: 3,
-},
-  emergencyIcon: { width: 36, height: 36},
+    flex: 1,
+    borderRadius: 18,
+    paddingVertical: 20,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: C.inputBorder, // ← subtle red-tinted border
+    shadowColor: C.cardShadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  emergencyIcon: { width: 36, height: 36 },
   emergencyLabel: { fontFamily: F.extraBold, fontSize: 15, color: C.white },
   emergencySubLabel: {
     fontFamily: F.medium,
