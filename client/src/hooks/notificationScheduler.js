@@ -59,9 +59,9 @@ export const scheduleMedicationReminders = async (medication) => {
           }),
         },
         trigger: {
+          type: "daily",
           hour: hours,
           minute: minutes,
-          repeats: true, // fires every day at this time
         },
       });
       scheduledIds.push(id);
@@ -71,9 +71,11 @@ export const scheduleMedicationReminders = async (medication) => {
     await storeMedicationNotificationIds(medication._id, scheduledIds);
 
     return scheduledIds;
-
   } catch (err) {
-    console.warn("[Notifications] Failed to schedule medication reminder:", err);
+    console.warn(
+      "[Notifications] Failed to schedule medication reminder:",
+      err,
+    );
   }
 };
 
@@ -102,7 +104,10 @@ export const rescheduleAllMedicationReminders = async (medications) => {
       }
     }
   } catch (err) {
-    console.warn("[Notifications] Failed to reschedule medication reminders:", err);
+    console.warn(
+      "[Notifications] Failed to reschedule medication reminders:",
+      err,
+    );
   }
 };
 
@@ -126,7 +131,9 @@ export const scheduleAppointmentReminder = async (appointment) => {
     }
 
     // Schedule 24 hours before
-    const reminderTime = new Date(appointmentDate.getTime() - 24 * 60 * 60 * 1000);
+    const reminderTime = new Date(
+      appointmentDate.getTime() - 24 * 60 * 60 * 1000,
+    );
 
     // Don't schedule if reminder time is in the past
     if (reminderTime <= new Date()) return;
@@ -143,15 +150,18 @@ export const scheduleAppointmentReminder = async (appointment) => {
         }),
       },
       trigger: {
+        type: "date",
         date: reminderTime,
       },
     });
 
     await storeAppointmentNotificationId(appointment._id, id);
     return id;
-
   } catch (err) {
-    console.warn("[Notifications] Failed to schedule appointment reminder:", err);
+    console.warn(
+      "[Notifications] Failed to schedule appointment reminder:",
+      err,
+    );
   }
 };
 
@@ -180,7 +190,10 @@ export const rescheduleAllAppointmentReminders = async (appointments) => {
       }
     }
   } catch (err) {
-    console.warn("[Notifications] Failed to reschedule appointment reminders:", err);
+    console.warn(
+      "[Notifications] Failed to reschedule appointment reminders:",
+      err,
+    );
   }
 };
 
