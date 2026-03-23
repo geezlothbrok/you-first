@@ -8,6 +8,8 @@ import medicationRoutes from "./routes/medications.route.js";
 import appointmentRoutes from "./routes/appointment.route.js";
 
 dotenv.config();
+console.log("EMAIL_USER:", process.env.EMAIL_USER);
+console.log("EMAIL_PASS:", process.env.EMAIL_PASS ? "loaded" : "missing");
 
 mongoose
   .connect(process.env.MONGO_SECRET_KEY)

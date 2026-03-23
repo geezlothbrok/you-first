@@ -4,13 +4,6 @@ import nodemailer from "nodemailer";
 import { errorHandler } from "../utils/error.js";
 
 // ─── Email transporter ────────────────────────────────────────────────────
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
 
 // ─── Generate 6-digit code ────────────────────────────────────────────────
 const generateCode = () =>
@@ -25,6 +18,13 @@ const resetCodes = new Map();
 // Sends a 6-digit reset code to the user's email
 export const forgotPassword = async (req, res, next) => {
   try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
     const { email } = req.body;
 
     if (!email) {
@@ -82,7 +82,6 @@ export const forgotPassword = async (req, res, next) => {
       success: true,
       message: "If this email is correct, a reset code has been sent.",
     });
-
   } catch (error) {
     next(error);
   }
@@ -101,12 +100,16 @@ export const verifyResetCode = async (req, res, next) => {
     const stored = resetCodes.get(email.toLowerCase().trim());
 
     if (!stored) {
-      return next(errorHandler(400, "No reset code found. Please request a new one."));
+      return next(
+        errorHandler(400, "No reset code found. Please request a new one."),
+      );
     }
 
     if (Date.now() > stored.expiresAt) {
       resetCodes.delete(email.toLowerCase().trim());
-      return next(errorHandler(400, "Reset code has expired. Please request a new one."));
+      return next(
+        errorHandler(400, "Reset code has expired. Please request a new one."),
+      );
     }
 
     if (stored.code !== code.trim()) {
@@ -117,7 +120,6 @@ export const verifyResetCode = async (req, res, next) => {
       success: true,
       message: "Code verified successfully.",
     });
-
   } catch (error) {
     next(error);
   }
@@ -130,7 +132,9 @@ export const resetPassword = async (req, res, next) => {
     const { email, code, newPassword } = req.body;
 
     if (!email || !code || !newPassword) {
-      return next(errorHandler(400, "Email, code and new password are required"));
+      return next(
+        errorHandler(400, "Email, code and new password are required"),
+      );
     }
 
     if (newPassword.length < 6) {
@@ -140,12 +144,16 @@ export const resetPassword = async (req, res, next) => {
     const stored = resetCodes.get(email.toLowerCase().trim());
 
     if (!stored) {
-      return next(errorHandler(400, "No reset code found. Please request a new one."));
+      return next(
+        errorHandler(400, "No reset code found. Please request a new one."),
+      );
     }
 
     if (Date.now() > stored.expiresAt) {
       resetCodes.delete(email.toLowerCase().trim());
-      return next(errorHandler(400, "Reset code has expired. Please request a new one."));
+      return next(
+        errorHandler(400, "Reset code has expired. Please request a new one."),
+      );
     }
 
     if (stored.code !== code.trim()) {
@@ -157,7 +165,7 @@ export const resetPassword = async (req, res, next) => {
 
     await User.findOneAndUpdate(
       { email: email.toLowerCase().trim() },
-      { $set: { password: hashedPassword } }
+      { $set: { password: hashedPassword } },
     );
 
     // Remove used code
@@ -167,7 +175,6 @@ export const resetPassword = async (req, res, next) => {
       success: true,
       message: "Password reset successfully. You can now log in.",
     });
-
   } catch (error) {
     next(error);
   }

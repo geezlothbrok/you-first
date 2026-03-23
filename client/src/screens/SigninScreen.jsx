@@ -362,9 +362,7 @@ export default function SigninScreen({ navigation }) {
             <TouchableOpacity
               style={styles.forgotBtn}
               hitSlop={{ top: 8, bottom: 8 }}
-              onPress={() => {
-                /* navigate to forgot password later */
-              }}>
+              onPress={() => navigation.navigate("ForgotPassword")}>
               <Text style={styles.forgotText}>Forgot password?</Text>
             </TouchableOpacity>
 
