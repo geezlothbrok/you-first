@@ -35,20 +35,31 @@ const Stack = createNativeStackNavigator();
 // ─── Navigator — driven purely by Redux auth state ────────────────────────────
 function AppNavigator() {
   const isAuthenticated = useSelector(selectIsAuthenticated);
+  const [initialRoute, setInitialRoute] = useState("Login");
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem("hasOnboarded").then((val) => {
+      setInitialRoute(val === "true" ? "Login" : "Onboarding");
+      setChecked(true);
+    });
+  }, []);
+
+  if (!checked) return null;
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
+      <Stack.Navigator
+        initialRouteName={isAuthenticated ? "Home" : initialRoute}
+        screenOptions={{ headerShown: false, animation: "fade" }}
+      >
         {isAuthenticated ? (
-          // Authenticated — go straight to Home, stays forever until logout
           <Stack.Screen name="Home" component={HomeScreen} />
         ) : (
-          // Unauthenticated — onboarding → signup/login
           <>
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="Signup" component={SignupScreen} />
             <Stack.Screen name="Login" component={SigninScreen} />
-            <Stack.Screen name="HealthProfile" component={HealthProfileScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           </>
         )}
