@@ -71,10 +71,6 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (fontsLoaded) SplashScreenExpo.hideAsync();
-  }, [fontsLoaded]);
-
-  useEffect(() => {
   if (!fontsLoaded) return;
   SplashScreenExpo.hideAsync();
 

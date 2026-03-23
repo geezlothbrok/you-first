@@ -70,7 +70,6 @@ export const scheduleMedicationReminders = async (medication) => {
     // Store notification IDs so we can cancel them later
     await storeMedicationNotificationIds(medication._id, scheduledIds);
 
-    console.log(`[Notifications] Scheduled ${scheduledIds.length} reminder(s) for ${medication.name}`);
     return scheduledIds;
 
   } catch (err) {
@@ -102,7 +101,6 @@ export const rescheduleAllMedicationReminders = async (medications) => {
         await scheduleMedicationReminders(med);
       }
     }
-    console.log(`[Notifications] Rescheduled reminders for ${medications.length} medication(s)`);
   } catch (err) {
     console.warn("[Notifications] Failed to reschedule medication reminders:", err);
   }
@@ -150,7 +148,6 @@ export const scheduleAppointmentReminder = async (appointment) => {
     });
 
     await storeAppointmentNotificationId(appointment._id, id);
-    console.log(`[Notifications] Scheduled reminder for appointment with ${appointment.doctorName}`);
     return id;
 
   } catch (err) {
@@ -182,7 +179,6 @@ export const rescheduleAllAppointmentReminders = async (appointments) => {
         await scheduleAppointmentReminder(apt);
       }
     }
-    console.log(`[Notifications] Rescheduled reminders for ${appointments.length} appointment(s)`);
   } catch (err) {
     console.warn("[Notifications] Failed to reschedule appointment reminders:", err);
   }
