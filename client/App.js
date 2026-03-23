@@ -24,6 +24,7 @@ import {
   requestNotificationPermissions,
 } from "./src/hooks/notificationScheduler";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 
 
 
@@ -48,6 +49,7 @@ function AppNavigator() {
             <Stack.Screen name="Signup" component={SignupScreen} />
             <Stack.Screen name="Login" component={SigninScreen} />
             <Stack.Screen name="HealthProfile" component={HealthProfileScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           </>
         )}
       </Stack.Navigator>
