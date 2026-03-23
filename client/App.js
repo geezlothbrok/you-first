@@ -17,6 +17,14 @@ import HomeScreen from './src/screens/HomeScreen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import HealthProfileScreen from './src/screens/HealthProfileScreen';
 
+import {
+  setupNotificationChannels,
+  rescheduleAllMedicationReminders,
+  rescheduleAllAppointmentReminders,
+  requestNotificationPermissions,
+} from "./src/hooks/notificationScheduler";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 
 
 SplashScreenExpo.preventAutoHideAsync();
@@ -65,6 +73,25 @@ export default function App() {
   useEffect(() => {
     if (fontsLoaded) SplashScreenExpo.hideAsync();
   }, [fontsLoaded]);
+
+  useEffect(() => {
+  if (!fontsLoaded) return;
+  SplashScreenExpo.hideAsync();
+
+  const init = async () => {
+    await requestNotificationPermissions();
+    await setupNotificationChannels();
+
+    // Reschedule from cache — works offline
+    const [medsRaw, aptsRaw] = await Promise.all([
+      AsyncStorage.getItem("medications_cache"),
+      AsyncStorage.getItem("appointments_cache_upcoming"),
+    ]);
+    if (medsRaw) await rescheduleAllMedicationReminders(JSON.parse(medsRaw));
+    if (aptsRaw) await rescheduleAllAppointmentReminders(JSON.parse(aptsRaw));
+  };
+  init();
+}, [fontsLoaded]);
 
   const handleSplashFinish = () => {
     Animated.timing(fadeAnim, {

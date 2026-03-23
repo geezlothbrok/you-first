@@ -21,6 +21,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSelector } from "react-redux";
 import { selectToken } from "../redux/slices/authSlice";
+import { cancelAppointmentReminder, scheduleAppointmentReminder } from "../hooks/notificationScheduler";
 
 const { width } = Dimensions.get("window");
 
@@ -568,6 +569,7 @@ export default function AppointmentsScreen({ navigation }) {
         Alert.alert("Error", data.message || "Failed to save.");
         return;
       }
+      await scheduleAppointmentReminder(data.appointment);
       await loadAppointments();
       setModalVisible(false);
       setEditingApt(null);
@@ -609,6 +611,7 @@ export default function AppointmentsScreen({ navigation }) {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
               });
+              await cancelAppointmentReminder(apt._id);
               await loadAppointments();
             } catch {
               Alert.alert("Error", "Failed to remove appointment.");

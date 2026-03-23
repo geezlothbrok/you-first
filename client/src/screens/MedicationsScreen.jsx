@@ -20,6 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSelector } from "react-redux";
 import { selectToken } from "../redux/slices/authSlice";
+import { cancelMedicationReminders, scheduleMedicationReminders } from "../hooks/notificationScheduler";
 
 const { width } = Dimensions.get("window");
 
@@ -676,6 +677,7 @@ export default function MedicationsScreen({ navigation }) {
         Alert.alert("Error", data.message || "Failed to save.");
         return;
       }
+      await scheduleMedicationReminders(data.medication);
       await loadAll();
       setModalVisible(false);
       setEditingMed(null);
@@ -701,6 +703,7 @@ export default function MedicationsScreen({ navigation }) {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
               });
+              await cancelMedicationReminders(med._id);
               await loadAll();
             } catch {
               Alert.alert("Error", "Failed to remove medication.");
